@@ -92,55 +92,55 @@ class UploadSalaryBillView(APIView):
                     # Handle PDF files
                     if file_path.lower().endswith('.pdf'):
                         try:
-                            # Use PyMuPDF for PDF processing (no Poppler required)
+                            # Use PyMuPDF for PDF processing
                             pdf_document = fitz.open(file_path)
-                            text = ""
                             page_count = len(pdf_document)
                             
-                            # Try to extract from first few pages
+                            # FIRST: Try to extract text directly (fast) from first few pages
                             for page_idx in range(min(3, page_count)):
                                 page = pdf_document[page_idx]
+                                extracted_text = page.get_text()
                                 
-                                # Render page to image
-                                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
-                                img_data = pix.tobytes("ppm")
-                                img = Image.open(io.BytesIO(img_data))
+                                if extracted_text and len(extracted_text.strip()) > 50:
+                                    text = extracted_text
+                                    logger.info(f"PDF text extracted directly: {len(text)} chars")
+                                    break
+                            
+                            # FALLBACK: If direct extraction failed, use OCR on rendered image
+                            if not text or len(text.strip()) < 50:
+                                logger.info("Direct text extraction failed or insufficient, falling back to OCR")
                                 
-                                processed_img = preprocess_image_for_ocr(img)
-                                
-                                # Use EasyOCR for better document handling
-                                if ocr_reader:
-                                    try:
-                                        # Convert PIL image to numpy array
-                                        img_array = np.array(processed_img)
-                                        results = ocr_reader.readtext(img_array)
-                                        page_text = "\n".join([result[1] for result in results])
-                                    except Exception as e:
-                                        logger.warning(f"EasyOCR failed, trying fallback: {e}")
-                                        # Fallback: pass raw PIL image
-                                        img_cv2 = np.array(img.convert('RGB'))
+                                for page_idx in range(min(3, page_count)):
+                                    page = pdf_document[page_idx]
+                                    
+                                    # Render page to image
+                                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom
+                                    img_data = pix.tobytes("ppm")
+                                    img = Image.open(io.BytesIO(img_data))
+                                    
+                                    # Use EasyOCR (if direct extraction failed)
+                                    if ocr_reader:
                                         try:
-                                            results = ocr_reader.readtext(img_cv2)
+                                            img_array = np.array(img)
+                                            results = ocr_reader.readtext(img_array)
                                             page_text = "\n".join([result[1] for result in results])
-                                        except:
+                                        except Exception as e:
+                                            logger.warning(f"EasyOCR failed: {e}")
                                             page_text = ""
-                                else:
-                                    page_text = ""
-                                
-                                page_text = page_text.strip()
-                                if page_text and len(page_text) > 10:
-                                    text = page_text
-                                    logger.info(f"PDF page {page_idx}: {len(text)} chars extracted")
-                                    break
-                                
-                                if text:
-                                    break
+                                    else:
+                                        page_text = ""
+                                    
+                                    page_text = page_text.strip()
+                                    if page_text and len(page_text) > 50:
+                                        text = page_text
+                                        logger.info(f"PDF page {page_idx} OCR: {len(text)} chars")
+                                        break
                             
                             pdf_document.close()
                             ocr_message = f"Extracted from PDF ({page_count} pages)" if text else "No text detected"
-                            logger.info(f"PDF final result: {len(text)} chars extracted")
+                            logger.info(f"PDF final result: {len(text)} chars")
                         except Exception as pdf_err:
-                            logger.error(f"PDF conversion failed: {pdf_err}", exc_info=True)
+                            logger.error(f"PDF processing failed: {pdf_err}", exc_info=True)
                             ocr_message = "PDF extraction unavailable"
                     else:
                         # Handle image files
