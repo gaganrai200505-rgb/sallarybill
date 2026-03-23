@@ -7,20 +7,23 @@ from .models import SalaryBill, ReimbursementClaim
 from .serializers import (SalaryBillSerializer, SalaryBillCreateSerializer,
                            ReimbursementClaimSerializer)
 from .tax_engine import calculate_full_tax
-import pytesseract
+import easyocr
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import io
 import os
 import fitz  # PyMuPDF for PDF processing
 import logging
-import platform
-
-# Configure pytesseract path for Tesseract OCR
-if platform.system() == 'Windows':
-    os.environ['PATH'] += r';C:\Program Files\Tesseract-OCR'
-    pytesseract.pytesseract.pytesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# Initialize EasyOCR reader (loads model once - more efficient)
+try:
+    ocr_reader = easyocr.Reader(['en'], gpu=False)
+    logger.info("EasyOCR reader initialized successfully")
+except Exception as e:
+    logger.warning(f"EasyOCR initialization warning: {e}")
+    ocr_reader = None
 
 
 def preprocess_image_for_ocr(image):
@@ -105,16 +108,30 @@ class UploadSalaryBillView(APIView):
                                 
                                 processed_img = preprocess_image_for_ocr(img)
                                 
-                                # Try PSM 11 first, then PSM 6
-                                for psm in [11, 6, 3]:
-                                    custom_config = f'--oem 3 --psm {psm} -l eng'
-                                    page_text = pytesseract.image_to_string(processed_img, config=custom_config)
-                                    page_text = page_text.strip()
-                                    
-                                    if page_text and len(page_text) > 10:
-                                        text = page_text
-                                        logger.info(f"PDF page {page_idx} PSM {psm}: {len(text)} chars extracted")
-                                        break
+                                # Use EasyOCR for better document handling
+                                if ocr_reader:
+                                    try:
+                                        # Convert PIL image to numpy array
+                                        img_array = np.array(processed_img)
+                                        results = ocr_reader.readtext(img_array)
+                                        page_text = "\n".join([result[1] for result in results])
+                                    except Exception as e:
+                                        logger.warning(f"EasyOCR failed, trying fallback: {e}")
+                                        # Fallback: pass raw PIL image
+                                        img_cv2 = np.array(img.convert('RGB'))
+                                        try:
+                                            results = ocr_reader.readtext(img_cv2)
+                                            page_text = "\n".join([result[1] for result in results])
+                                        except:
+                                            page_text = ""
+                                else:
+                                    page_text = ""
+                                
+                                page_text = page_text.strip()
+                                if page_text and len(page_text) > 10:
+                                    text = page_text
+                                    logger.info(f"PDF page {page_idx}: {len(text)} chars extracted")
+                                    break
                                 
                                 if text:
                                     break
@@ -131,20 +148,19 @@ class UploadSalaryBillView(APIView):
                             img = Image.open(file_path)
                             processed_img = preprocess_image_for_ocr(img)
                             
-                            # Try PSM 11 first, then PSM 6
+                            # Use EasyOCR for better document handling
                             text = ""
-                            for psm in [11, 6, 3]:
-                                custom_config = f'--oem 3 --psm {psm} -l eng'
-                                page_text = pytesseract.image_to_string(processed_img, config=custom_config)
-                                page_text = page_text.strip()
-                                
-                                if page_text and len(page_text) > 10:
-                                    text = page_text
-                                    logger.info(f"Image PSM {psm}: {len(text)} chars")
-                                    break
+                            if ocr_reader:
+                                try:
+                                    img_array = np.array(processed_img)
+                                    results = ocr_reader.readtext(img_array)
+                                    text = "\n".join([result[1] for result in results])
+                                except Exception as e:
+                                    logger.warning(f"EasyOCR failed on image: {e}")
                             
+                            text = text.strip()
                             ocr_message = "Extracted from image" if text else "No text detected"
-                            logger.info(f"Image final result: {len(text)} chars")
+                            logger.info(f"Image result: {len(text)} chars")
                         except Exception as img_err:
                             logger.error(f"Image OCR failed: {img_err}", exc_info=True)
                             ocr_message = "Image extraction unavailable"
