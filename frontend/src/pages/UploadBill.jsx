@@ -91,9 +91,10 @@ export default function UploadBill() {
         /special[\s:]*([0-9,]+\.?\d*)/i,
       ],
       pf: [
+        /provident.*?fund.*?pf.*?([0-9,]+\.?\d*)/i,  // Flexible: allows any chars between words
+        /pf.*?([0-9,]+\.?\d*)/i,  // PF followed by any chars then number
         /provident\s+fund\s+pf\s+([0-9,]+\.?\d*)/i,
         /provident\s+fund[\s{]*pf[\s}]*[\s:]*([0-9,]+\.?\d*)/i,
-        /provident\s+fund[\s:]*\(?pf\)?[\s:]*([0-9,]+\.?\d*)/i,
         /pf\s+([0-9,]+\.?\d*)/i,
         /pf[\s:]*([0-9,]+\.?\d*)/i,
       ],
@@ -112,13 +113,16 @@ export default function UploadBill() {
     };
     
     Object.entries(patterns).forEach(([field, regexList]) => {
-      for (const regex of regexList) {
+      console.log(`\n[PARSE] Attempting to extract: ${field}`);
+      for (let i = 0; i < regexList.length; i++) {
+        const regex = regexList[i];
         const match = text.match(regex);
+        console.log(`  Pattern ${i+1}/${regexList.length}: ${regex.source.substring(0, 50)}... → ${match ? 'MATCH: ' + match[1] : 'NO MATCH'}`);
         if (match && match[1]) {
           const value = parseFloat(match[1].replace(/,/g, ''));
           if (value > 0) {
             extracted[field] = value;
-            console.log(`[OCR Parse] ${field}: ${value} (from: ${match[0]})`);
+            console.log(`  ✓ EXTRACTED ${field}: ${value}`);
             break;
           }
         }
@@ -158,10 +162,20 @@ export default function UploadBill() {
       
       // Auto-fill extracted fields from OCR
       if (data.bill?.ocr_raw_text) {
+        console.log('===============================================');
+        console.log('RAW OCR TEXT FROM BACKEND:');
+        console.log('===============================================');
+        console.log(data.bill.ocr_raw_text);
+        console.log('===============================================');
+        
         const extracted = parseSalaryComponents(data.bill.ocr_raw_text);
+        console.log('EXTRACTED FIELDS:', extracted);
+        
         if (Object.keys(extracted).length > 0) {
           setForm(prev => ({ ...prev, ...extracted }));
-          console.log('Auto-filled fields from OCR:', extracted);
+          console.log('Form updated with:', extracted);
+        } else {
+          console.warn('NO FIELDS EXTRACTED FROM OCR TEXT');
         }
       }
       
