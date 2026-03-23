@@ -69,38 +69,39 @@ export default function UploadBill() {
         /basic[\s:]*([0-9,]+\.?\d*)/i,
       ],
       hra: [
-        /house\s*rent\s*allowance[\s:]*\(?hra\)?[\s:]*([0-9,]+\.?\d*)/i,
-        /hra[\s:]*([0-9,]+\.?\d*)/i,
+        /house\s*rent\s*allowance\s+\(?\s*hra\s*\)?\s+([0-9,]+\.?\d*)/i,
+        /house\s*rent\s*allowance[\s{]*hra[\s}]*[\s:]*([0-9,]+\.?\d*)/i,
         /house\s*rent[\s:]*([0-9,]+\.?\d*)/i,
       ],
       da: [
-        /dearness\s*allowance[\s:]*\(?da\)?[\s:]*([0-9,]+\.?\d*)/i,
-        /dearess\s*allowance[\s:]*\(?da\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /deamess?\s*allowance[\s{]*da[\s}]*[\s:]*([0-9,]+\.?\d*)/i,
+        /deamess?\s*allowance[\s:]*\(?da\)?[\s:]*([0-9,]+\.?\d*)/i,
         /da[\s:]*([0-9,]+\.?\d*)/i,
-        /dearness[\s:]*([0-9,]+\.?\d*)/i,
       ],
       ta: [
-        /travel\s*allowance[\s:]*\(?ta\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /travel\s+allowance\s+\(?\s*ta\s*\)?\s+([0-9,]+\.?\d*)/i,
+        /travel\s*allowance[\s{]*ta[\s}]*[\s:]*([0-9,]+\.?\d*)/i,
+        /\(ta\)\s+([0-9,]+\.?\d*)/i,
         /ta[\s:]*([0-9,]+\.?\d*)/i,
-        /travel[\s:]*([0-9,]+\.?\d*)/i,
       ],
       special_allowance: [
         /special\s*allowance[\s:]*([0-9,]+\.?\d*)/i,
         /special[\s:]*([0-9,]+\.?\d*)/i,
       ],
       pf: [
+        /provident\s*fund[\s{]*pf[\s}]*[\s:]*([0-9,]+\.?\d*)/i,
         /provident\s*fund[\s:]*\(?pf\)?[\s:]*([0-9,]+\.?\d*)/i,
         /pf[\s:]*([0-9,]+\.?\d*)/i,
-        /gpf[\s:]*([0-9,]+\.?\d*)/i,
       ],
       professional_tax: [
         /professional\s*tax[\s:]*([0-9,]+\.?\d*)/i,
+        /\bal\s+tax\s+([0-9,]+\.?\d*)/i,
         /pt[\s:]*([0-9,]+\.?\d*)/i,
       ],
       tds_deducted: [
+        /income\s+ta[x]?\s+([0-9,]+\.?\d*)/i,
         /income\s*tax[\s:]*\(?tds\)?[\s:]*([0-9,]+\.?\d*)/i,
         /tds[\s:]*([0-9,]+\.?\d*)/i,
-        /tax\s*deducted[\s:]*([0-9,]+\.?\d*)/i,
       ],
     };
     
