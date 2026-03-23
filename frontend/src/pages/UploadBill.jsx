@@ -89,6 +89,8 @@ export default function UploadBill() {
       special_allowance: [
         /special\s+allowance[\s:]*([0-9,]+\.?\d*)/i,
         /special[\s:]*([0-9,]+\.?\d*)/i,
+        /allowance[\s:]*([0-9,]+\.?\d*)/i,  // Fallback: just "allowance" followed by number
+        /^.*special.*?([0-9,]+\.?\d*)\s*$/im,  // Special followed by number on same line
       ],
       pf: [
         /provident.*?fund.*?pf.*?([0-9,]+\.?\d*)/i,  // Flexible: allows any chars between words
@@ -101,8 +103,10 @@ export default function UploadBill() {
       professional_tax: [
         /professional\s+tax[\s:]*([0-9,]+\.?\d*)/i,
         /professional\s+tax\s*:\s*([0-9,]+)/i,
+        /prof.*?tax[\s:]*([0-9,]+\.?\d*)/i,  // Abbreviated: "prof" + anything + "tax"
         /\bal\s+tax[\s:]*([0-9,]+\.?\d*)/i,
         /pt[\s:]*([0-9,]+\.?\d*)/i,
+        /^.*professional.*?([0-9,]+\.?\d*)\s*$/im,  // Professional followed by number on same line
       ],
       tds_deducted: [
         /income\s+tax\s+tds[\s:]*([0-9,]+\.?\d*)/i,
