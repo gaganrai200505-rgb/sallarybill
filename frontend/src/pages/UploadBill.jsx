@@ -121,8 +121,56 @@ export default function UploadBill() {
     return extracted;
   };
 
-  const handleSubmit = async () => {
-    // Validate all salary fields have values
+  const handleScanAndExtract = async () => {
+    // Step 1 → Step 2: Upload file and extract values
+    if (!file) {
+      setError('Please select a file to scan');
+      return;
+    }
+
+    setLoading(true); setError(''); setOcrStatus(null);
+    try {
+      const fd = new FormData();
+      fd.append('month', form.month);
+      fd.append('year', form.year);
+      fd.append('basic_pay', 0);
+      fd.append('hra', 0);
+      fd.append('da', 0);
+      fd.append('ta', 0);
+      fd.append('special_allowance', 0);
+      fd.append('pf', 0);
+      fd.append('professional_tax', 0);
+      fd.append('tds_deducted', 0);
+      fd.append('is_metro', form.is_metro);
+      fd.append('regime', form.regime);
+      fd.append('bill_file', file);
+      
+      const { data } = await api.post('/salary/upload/', fd);
+      setResult(data);
+      setOcrStatus(data.ocr);
+      
+      // Auto-fill extracted fields from OCR
+      if (data.bill?.ocr_raw_text) {
+        const extracted = parseSalaryComponents(data.bill.ocr_raw_text);
+        if (Object.keys(extracted).length > 0) {
+          setForm(prev => ({ ...prev, ...extracted }));
+          console.log('Auto-filled fields from OCR:', extracted);
+        }
+      }
+      
+      // Go to step 2 to allow user to review/edit extracted values
+      setStep(2);
+    } catch (e) {
+      const errorMsg = e.response?.data?.error || 
+                       Object.values(e.response?.data || {}).flat()[0] || 
+                       'Upload failed';
+      setError(errorMsg);
+      console.error('Scan error:', e.response?.data);
+    } finally { setLoading(false); }
+  };
+
+  const handleCalculateTax = async () => {
+    // Step 2 → Step 3: Validate form and calculate tax
     const salaryFields = ['basic_pay', 'hra', 'da', 'ta', 'special_allowance', 'pf', 'professional_tax', 'tds_deducted'];
     const emptyFields = salaryFields.filter(field => !form[field] || form[field] === '');
     
@@ -131,49 +179,45 @@ export default function UploadBill() {
       return;
     }
 
-    setLoading(true); setError(''); setOcrStatus(null);
+    setLoading(true); setError(''); 
     try {
-      const fd = new FormData();
-      
-      // Convert string values to numbers
-      const submitData = {
-        month: form.month,
-        year: form.year,
-        basic_pay: parseFloat(form.basic_pay) || 0,
-        hra: parseFloat(form.hra) || 0,
-        da: parseFloat(form.da) || 0,
-        ta: parseFloat(form.ta) || 0,
-        special_allowance: parseFloat(form.special_allowance) || 0,
-        pf: parseFloat(form.pf) || 0,
-        professional_tax: parseFloat(form.professional_tax) || 0,
-        tds_deducted: parseFloat(form.tds_deducted) || 0,
-        is_metro: form.is_metro,
-        regime: form.regime,
-      };
-      
-      Object.entries(submitData).forEach(([k, v]) => fd.append(k, v));
-      if (file) fd.append('bill_file', file);
-      
-      const { data } = await api.post('/salary/upload/', fd);
-      setResult(data);
-      setOcrStatus(data.ocr);
-      
-      // If OCR was successful and has text, auto-fill fields
-      if (data.ocr?.success && data.bill?.ocr_raw_text) {
-        const extracted = parseSalaryComponents(data.bill.ocr_raw_text);
-        if (Object.keys(extracted).length > 0) {
-          setForm(prev => ({ ...prev, ...extracted }));
-          console.log('Auto-filled fields:', extracted);
-        }
+      // If we have a stored bill result, recalculate tax for that bill
+      if (result?.bill?.id) {
+        const { data } = await api.post(`/salary/bills/${result.bill.id}/recalculate/`, {
+          regime: form.regime,
+        });
+        setResult(prev => ({ ...prev, tax_result: data.tax_result }));
+      } else {
+        // Otherwise, create new submission with calculated values
+        const fd = new FormData();
+        const submitData = {
+          month: form.month,
+          year: form.year,
+          basic_pay: parseFloat(form.basic_pay) || 0,
+          hra: parseFloat(form.hra) || 0,
+          da: parseFloat(form.da) || 0,
+          ta: parseFloat(form.ta) || 0,
+          special_allowance: parseFloat(form.special_allowance) || 0,
+          pf: parseFloat(form.pf) || 0,
+          professional_tax: parseFloat(form.professional_tax) || 0,
+          tds_deducted: parseFloat(form.tds_deducted) || 0,
+          is_metro: form.is_metro,
+          regime: form.regime,
+        };
+        
+        Object.entries(submitData).forEach(([k, v]) => fd.append(k, v));
+        const { data } = await api.post('/salary/upload/', fd);
+        setResult(data);
       }
       
+      // Go to step 3 to show results
       setStep(3);
     } catch (e) {
       const errorMsg = e.response?.data?.error || 
                        Object.values(e.response?.data || {}).flat()[0] || 
-                       'Upload failed';
+                       'Calculation failed';
       setError(errorMsg);
-      console.error('Upload error:', e.response?.data);
+      console.error('Tax calc error:', e.response?.data);
     } finally { setLoading(false); }
   };
 
@@ -252,7 +296,7 @@ export default function UploadBill() {
               <button onClick={() => setStep(2)} style={{ flex: 1, padding: 14, background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 12, color: C.text, cursor: 'pointer', fontSize: 14, fontWeight: 600, transition: 'all 0.3s ease' }} onMouseEnter={e => { e.target.style.borderColor = C.accent; e.target.style.boxShadow = `0 4px 12px rgba(0, 212, 255, 0.2)`; }} onMouseLeave={e => { e.target.style.borderColor = C.border; e.target.style.boxShadow = 'none'; }}>
                 Skip → Enter Manually
               </button>
-              <button onClick={file ? handleSubmit : () => setStep(2)} disabled={loading} style={{
+              <button onClick={file ? handleScanAndExtract : () => setStep(2)} disabled={loading} style={{
                 flex: 1, padding: 14, background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
                 border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
                 transition: 'all 0.3s ease', boxShadow: `0 4px 16px rgba(0, 212, 255, 0.3)`,
@@ -346,7 +390,7 @@ export default function UploadBill() {
 
           <div style={{ display: 'flex', gap: 14, marginTop: 24 }}>
             <button onClick={() => setStep(1)} style={{ padding: '14px 22px', background: 'none', border: `1.5px solid ${C.border}`, borderRadius: 12, color: C.muted, cursor: 'pointer', fontSize: 14, fontWeight: 600, transition: 'all 0.3s ease' }} onMouseEnter={e => { e.target.style.borderColor = C.accent; e.target.style.color = C.accent; }} onMouseLeave={e => { e.target.style.borderColor = C.border; e.target.style.color = C.muted; }}>← Back</button>
-            <button onClick={handleSubmit} disabled={loading} style={{
+            <button onClick={handleCalculateTax} disabled={loading} style={{
               flex: 1, padding: 14, background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
               border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', opacity: loading ? 0.7 : 1,
               transition: 'all 0.3s ease', boxShadow: `0 4px 16px rgba(0, 212, 255, 0.3)`,
