@@ -93,9 +93,10 @@ class UploadSalaryBillView(APIView):
                             # Use PyMuPDF for PDF processing (no Poppler required)
                             pdf_document = fitz.open(file_path)
                             text = ""
+                            page_count = len(pdf_document)
                             
                             # Try to extract from first few pages
-                            for page_idx in range(min(3, len(pdf_document))):
+                            for page_idx in range(min(3, page_count)):
                                 page = pdf_document[page_idx]
                                 
                                 # Render page to image
@@ -120,7 +121,7 @@ class UploadSalaryBillView(APIView):
                                     break
                             
                             pdf_document.close()
-                            ocr_message = f"Extracted from PDF ({len(pdf_document)} pages)" if text else "No text detected"
+                            ocr_message = f"Extracted from PDF ({page_count} pages)" if text else "No text detected"
                             logger.info(f"PDF final result: {len(text)} chars extracted")
                         except Exception as pdf_err:
                             logger.error(f"PDF conversion failed: {pdf_err}", exc_info=True)
@@ -157,21 +158,6 @@ class UploadSalaryBillView(APIView):
                         bill.ocr_raw_text = "No text found in document"
                         ocr_message = "No text detected in document"
                         logger.warning(f"OCR returned no text for file: {file_path}")
-                        
-                        # Save the image for debugging
-                        try:
-                            if file_path.lower().endswith('.pdf'):
-                                debug_img = images[0] if images else None
-                            else:
-                                debug_img = img
-                            
-                            if debug_img:
-                                debug_path = file_path.replace('.pdf', '_debug.png').replace('.', '_debug.')
-                                if isinstance(debug_img, Image.Image):
-                                    debug_img.save(debug_path)
-                                logger.warning(f"Debug image saved to: {debug_path}")
-                        except Exception as debug_err:
-                            logger.warning(f"Failed to save debug image: {debug_err}")
                         
                 except Exception as e:
                     logger.error(f"OCR processing error: {e}", exc_info=True)

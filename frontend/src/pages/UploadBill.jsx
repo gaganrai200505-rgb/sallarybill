@@ -58,6 +58,40 @@ export default function UploadBill() {
     return matches ? matches.map(m => parseFloat(m.replace(/,/g, ''))) : [];
   };
 
+  const parseSalaryComponents = (text) => {
+    // Parse OCR text to extract salary components
+    const extracted = {};
+    
+    const patterns = {
+      basic_pay: ['basic pay', 'basic', 'bp'],
+      hra: ['hra', 'house rent'],
+      da: ['dearness allowance', 'da', 'dear'],
+      ta: ['travel allowance', 'ta', 'trav'],
+      special_allowance: ['special allowance', 'special', 'allowance'],
+      pf: ['pf', 'provident fund', 'p\\.?f\\.?', 'gpf'],
+      professional_tax: ['professional tax', 'pt', 'prof tax'],
+      tds_deducted: ['tds', 'tax deducted', 'income tax'],
+    };
+    
+    const textLower = text.toLowerCase().replace(/\s+/g, ' ');
+    
+    Object.entries(patterns).forEach(([field, keywords]) => {
+      for (const keyword of keywords) {
+        const regex = new RegExp(`${keyword}[:\\s]+([\\d,]+(?:\\.\\d{2})?)`);
+        const match = textLower.match(regex);
+        if (match) {
+          const value = parseFloat(match[1].replace(/,/g, ''));
+          if (value > 0) {
+            extracted[field] = value;
+            break;
+          }
+        }
+      }
+    });
+    
+    return extracted;
+  };
+
   const handleSubmit = async () => {
     setLoading(true); setError(''); setOcrStatus(null);
     try {
@@ -68,12 +102,12 @@ export default function UploadBill() {
       setResult(data);
       setOcrStatus(data.ocr);
       
-      // If OCR was successful and has text, try to auto-fill some fields
+      // If OCR was successful and has text, auto-fill fields
       if (data.ocr?.success && data.bill?.ocr_raw_text) {
-        const numbers = extractNumbersFromText(data.bill.ocr_raw_text);
-        if (numbers.length > 0) {
-          // Optional: Could implement smart field mapping here
-          console.log('Extracted numbers from bill:', numbers);
+        const extracted = parseSalaryComponents(data.bill.ocr_raw_text);
+        if (Object.keys(extracted).length > 0) {
+          setForm(prev => ({ ...prev, ...extracted }));
+          console.log('Auto-filled fields:', extracted);
         }
       }
       
