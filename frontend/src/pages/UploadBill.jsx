@@ -139,7 +139,7 @@ export default function UploadBill() {
       return;
     }
 
-    setLoading(true); setError(''); setOcrStatus(null);
+    setLoading(true); setError(''); setOcrStatus('processing');  // Show processing status
     try {
       const fd = new FormData();
       fd.append('month', form.month);
@@ -184,9 +184,11 @@ export default function UploadBill() {
     } catch (e) {
       const errorMsg = e.response?.data?.error || 
                        Object.values(e.response?.data || {}).flat()[0] || 
-                       'Upload failed';
+                       'Upload failed. Please check the browser console for details.';
       setError(errorMsg);
-      console.error('Scan error:', e.response?.data);
+      console.error('Scan error:', e);
+      console.error('Response data:', e.response?.data);
+      console.error('Error message:', e.message);
     } finally { setLoading(false); }
   };
 
