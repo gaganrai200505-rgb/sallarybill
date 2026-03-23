@@ -27,7 +27,6 @@ def preprocess_image_for_ocr(image):
     """
     Preprocess image to improve OCR accuracy using PIL.
     Optimized for salary documents and scanned PDFs.
-    Enhanced for better column-based layout recognition.
     """
     try:
         # Ensure image is in RGB
@@ -46,26 +45,23 @@ def preprocess_image_for_ocr(image):
         # Convert to grayscale
         gray = image.convert('L')
         
-        # Remove noise with median filter (stronger)
-        gray = gray.filter(ImageFilter.MedianFilter(size=5))
+        # Remove noise with median filter
+        gray = gray.filter(ImageFilter.MedianFilter(size=3))
         
-        # Enhance contrast AGGRESSIVELY for better column separation
+        # Enhance contrast moderately
         enhancer = ImageEnhance.Contrast(gray)
-        gray = enhancer.enhance(2.5)  # Increased from 1.8 for better deduction visibility
+        gray = enhancer.enhance(1.5)  # Moderate: was 1.8, reverted from 2.5
         
-        # Enhance sharpness
+        # Enhance sharpness moderately
         enhancer = ImageEnhance.Sharpness(gray)
-        gray = enhancer.enhance(2.0)  # Increased from 1.2
+        gray = enhancer.enhance(1.2)  # Back to original
         
-        # Adjust brightness for visibility
+        # Adjust brightness
         enhancer = ImageEnhance.Brightness(gray)
-        gray = enhancer.enhance(1.1)
+        gray = enhancer.enhance(1.0)
         
-        # Use aggressive autocontrast to separate text from background
-        gray = ImageOps.autocontrast(gray, cutoff=2)  # Changed from 5
-        
-        # Apply additional edge enhancement for column borders
-        gray = gray.filter(ImageFilter.SHARPEN)
+        # Use autocontrast
+        gray = ImageOps.autocontrast(gray, cutoff=5)
         
         logger.debug(f"Preprocessing complete: {width}x{height} -> {gray.size}")
         return gray
