@@ -271,6 +271,65 @@ class BillDetailView(generics.RetrieveUpdateDestroyAPIView):
         if user.role in ['manager', 'finance']:
             return SalaryBill.objects.all()
         return SalaryBill.objects.filter(employee=user)
+    
+    def patch(self, request, *args, **kwargs):
+        """Override PATCH to recalculate tax after updating bill"""
+        bill = self.get_object()
+        
+        # Update bill fields from request data
+        if 'basic_pay' in request.data:
+            bill.basic_pay = float(request.data['basic_pay'])
+        if 'hra' in request.data:
+            bill.hra = float(request.data['hra'])
+        if 'da' in request.data:
+            bill.da = float(request.data['da'])
+        if 'ta' in request.data:
+            bill.ta = float(request.data['ta'])
+        if 'special_allowance' in request.data:
+            bill.special_allowance = float(request.data['special_allowance'])
+        if 'pf' in request.data:
+            bill.pf = float(request.data['pf'])
+        if 'professional_tax' in request.data:
+            bill.professional_tax = float(request.data['professional_tax'])
+        if 'tds_deducted' in request.data:
+            bill.tds_deducted = float(request.data['tds_deducted'])
+        if 'is_metro' in request.data:
+            # Handle boolean conversion from string
+            is_metro_val = request.data['is_metro']
+            bill.is_metro = is_metro_val in [True, 'true', 'True', 1, '1']
+        if 'regime' in request.data:
+            bill.regime = request.data['regime']
+        
+        bill.save()
+        
+        # Recalculate tax with updated values
+        data = {
+            'basic_pay': float(bill.basic_pay),
+            'hra': float(bill.hra),
+            'da': float(bill.da),
+            'ta': float(bill.ta),
+            'special_allowance': float(bill.special_allowance),
+            'pf': float(bill.pf),
+            'professional_tax': float(bill.professional_tax),
+            'tds_deducted': float(bill.tds_deducted),
+            'metro': bill.is_metro,
+        }
+        
+        result = calculate_full_tax(data, bill.regime)
+        
+        bill.gross_monthly = result['gross_monthly']
+        bill.taxable_income = result['taxable_income']
+        bill.monthly_tds_required = result['monthly_tds_required']
+        bill.discrepancy = result['discrepancy']
+        bill.tax_status = result['status']
+        bill.save()
+        
+        logger.info(f"Bill {bill.id} updated and tax recalculated: {result['status']}")
+        
+        return Response({
+            'bill': SalaryBillSerializer(bill).data,
+            'tax_result': result,
+        }, status=200)
 
 
 class AllBillsView(generics.ListAPIView):

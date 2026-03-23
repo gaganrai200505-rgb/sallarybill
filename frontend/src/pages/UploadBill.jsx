@@ -208,30 +208,33 @@ export default function UploadBill() {
 
     setLoading(true); setError(''); 
     try {
-      // If we have a stored bill result, recalculate tax for that bill
+      // ALWAYS use current form values for calculation, not database values
+      const submitData = {
+        month: form.month,
+        year: form.year,
+        basic_pay: parseFloat(form.basic_pay) || 0,
+        hra: parseFloat(form.hra) || 0,
+        da: parseFloat(form.da) || 0,
+        ta: parseFloat(form.ta) || 0,
+        special_allowance: parseFloat(form.special_allowance) || 0,
+        pf: parseFloat(form.pf) || 0,
+        professional_tax: parseFloat(form.professional_tax) || 0,
+        tds_deducted: parseFloat(form.tds_deducted) || 0,
+        is_metro: form.is_metro,
+        regime: form.regime,
+      };
+      
+      // If we have an existing bill, update it with current form values
       if (result?.bill?.id) {
-        const { data } = await api.post(`/salary/bills/${result.bill.id}/recalculate/`, {
-          regime: form.regime,
-        });
-        setResult(prev => ({ ...prev, tax_result: data.tax_result }));
-      } else {
-        // Otherwise, create new submission with calculated values
+        console.log('Recalculating with form values:', submitData);
         const fd = new FormData();
-        const submitData = {
-          month: form.month,
-          year: form.year,
-          basic_pay: parseFloat(form.basic_pay) || 0,
-          hra: parseFloat(form.hra) || 0,
-          da: parseFloat(form.da) || 0,
-          ta: parseFloat(form.ta) || 0,
-          special_allowance: parseFloat(form.special_allowance) || 0,
-          pf: parseFloat(form.pf) || 0,
-          professional_tax: parseFloat(form.professional_tax) || 0,
-          tds_deducted: parseFloat(form.tds_deducted) || 0,
-          is_metro: form.is_metro,
-          regime: form.regime,
-        };
+        Object.entries(submitData).forEach(([k, v]) => fd.append(k, v));
         
+        const { data } = await api.patch(`/salary/bills/${result.bill.id}/`, fd);
+        setResult(prev => ({ ...prev, bill: data.bill || prev.bill, tax_result: data.tax_result }));
+      } else {
+        // Create new submission
+        const fd = new FormData();
         Object.entries(submitData).forEach(([k, v]) => fd.append(k, v));
         const { data } = await api.post('/salary/upload/', fd);
         setResult(data);
@@ -242,9 +245,9 @@ export default function UploadBill() {
     } catch (e) {
       const errorMsg = e.response?.data?.error || 
                        Object.values(e.response?.data || {}).flat()[0] || 
-                       'Calculation failed';
+                       'Calculation failed. Check that all values are valid numbers.';
       setError(errorMsg);
-      console.error('Tax calc error:', e.response?.data);
+      console.error('Tax calc error:', e);
     } finally { setLoading(false); }
   };
 
