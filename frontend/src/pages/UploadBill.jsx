@@ -122,11 +122,38 @@ export default function UploadBill() {
   };
 
   const handleSubmit = async () => {
+    // Validate all salary fields have values
+    const salaryFields = ['basic_pay', 'hra', 'da', 'ta', 'special_allowance', 'pf', 'professional_tax', 'tds_deducted'];
+    const emptyFields = salaryFields.filter(field => !form[field] || form[field] === '');
+    
+    if (emptyFields.length > 0) {
+      setError(`Please fill in: ${emptyFields.join(', ')}`);
+      return;
+    }
+
     setLoading(true); setError(''); setOcrStatus(null);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      
+      // Convert string values to numbers
+      const submitData = {
+        month: form.month,
+        year: form.year,
+        basic_pay: parseFloat(form.basic_pay) || 0,
+        hra: parseFloat(form.hra) || 0,
+        da: parseFloat(form.da) || 0,
+        ta: parseFloat(form.ta) || 0,
+        special_allowance: parseFloat(form.special_allowance) || 0,
+        pf: parseFloat(form.pf) || 0,
+        professional_tax: parseFloat(form.professional_tax) || 0,
+        tds_deducted: parseFloat(form.tds_deducted) || 0,
+        is_metro: form.is_metro,
+        regime: form.regime,
+      };
+      
+      Object.entries(submitData).forEach(([k, v]) => fd.append(k, v));
       if (file) fd.append('bill_file', file);
+      
       const { data } = await api.post('/salary/upload/', fd);
       setResult(data);
       setOcrStatus(data.ocr);
@@ -140,9 +167,13 @@ export default function UploadBill() {
         }
       }
       
-      setStep(2);
+      setStep(3);
     } catch (e) {
-      setError(Object.values(e.response?.data || {}).flat()[0] || 'Upload failed');
+      const errorMsg = e.response?.data?.error || 
+                       Object.values(e.response?.data || {}).flat()[0] || 
+                       'Upload failed';
+      setError(errorMsg);
+      console.error('Upload error:', e.response?.data);
     } finally { setLoading(false); }
   };
 

@@ -176,14 +176,21 @@ class UploadSalaryBillView(APIView):
                 'tds_deducted': float(bill.tds_deducted),
                 'metro': bill.is_metro,
             }
-            result = calculate_full_tax(data, bill.regime)
-
-            bill.gross_monthly = result['gross_monthly']
-            bill.taxable_income = result['taxable_income']
-            bill.monthly_tds_required = result['monthly_tds_required']
-            bill.discrepancy = result['discrepancy']
-            bill.tax_status = result['status']
-            bill.save()
+            
+            try:
+                result = calculate_full_tax(data, bill.regime)
+                
+                bill.gross_monthly = result['gross_monthly']
+                bill.taxable_income = result['taxable_income']
+                bill.monthly_tds_required = result['monthly_tds_required']
+                bill.discrepancy = result['discrepancy']
+                bill.tax_status = result['status']
+                bill.save()
+                
+                logger.info(f"Tax calculated for bill {bill.id}: {result['status']}")
+            except Exception as tax_err:
+                logger.error(f"Tax calculation error: {tax_err}", exc_info=True)
+                return Response({'error': f'Tax calculation failed: {str(tax_err)}'}, status=400)
 
             return Response({
                 'bill': SalaryBillSerializer(bill).data,
@@ -193,6 +200,9 @@ class UploadSalaryBillView(APIView):
                     'message': ocr_message
                 }
             }, status=201)
+        
+        # Return detailed validation errors
+        logger.error(f"Serializer validation failed: {serializer.errors}")
         return Response(serializer.errors, status=400)
 
 
