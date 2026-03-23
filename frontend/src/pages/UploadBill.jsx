@@ -62,24 +62,52 @@ export default function UploadBill() {
     // Parse OCR text to extract salary components
     const extracted = {};
     
+    // Patterns that match various formats in salary slips
     const patterns = {
-      basic_pay: ['basic pay', 'basic', 'bp'],
-      hra: ['hra', 'house rent'],
-      da: ['dearness allowance', 'da', 'dear'],
-      ta: ['travel allowance', 'ta', 'trav'],
-      special_allowance: ['special allowance', 'special', 'allowance'],
-      pf: ['pf', 'provident fund', 'p\\.?f\\.?', 'gpf'],
-      professional_tax: ['professional tax', 'pt', 'prof tax'],
-      tds_deducted: ['tds', 'tax deducted', 'income tax'],
+      basic_pay: [
+        /basic\s*pay[\s:]*([0-9,]+\.?\d*)/i,
+        /basic[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      hra: [
+        /house\s*rent\s*allowance[\s:]*\(?hra\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /hra[\s:]*([0-9,]+\.?\d*)/i,
+        /house\s*rent[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      da: [
+        /dearness\s*allowance[\s:]*\(?da\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /dearess\s*allowance[\s:]*\(?da\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /da[\s:]*([0-9,]+\.?\d*)/i,
+        /dearness[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      ta: [
+        /travel\s*allowance[\s:]*\(?ta\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /ta[\s:]*([0-9,]+\.?\d*)/i,
+        /travel[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      special_allowance: [
+        /special\s*allowance[\s:]*([0-9,]+\.?\d*)/i,
+        /special[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      pf: [
+        /provident\s*fund[\s:]*\(?pf\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /pf[\s:]*([0-9,]+\.?\d*)/i,
+        /gpf[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      professional_tax: [
+        /professional\s*tax[\s:]*([0-9,]+\.?\d*)/i,
+        /pt[\s:]*([0-9,]+\.?\d*)/i,
+      ],
+      tds_deducted: [
+        /income\s*tax[\s:]*\(?tds\)?[\s:]*([0-9,]+\.?\d*)/i,
+        /tds[\s:]*([0-9,]+\.?\d*)/i,
+        /tax\s*deducted[\s:]*([0-9,]+\.?\d*)/i,
+      ],
     };
     
-    const textLower = text.toLowerCase().replace(/\s+/g, ' ');
-    
-    Object.entries(patterns).forEach(([field, keywords]) => {
-      for (const keyword of keywords) {
-        const regex = new RegExp(`${keyword}[:\\s]+([\\d,]+(?:\\.\\d{2})?)`);
-        const match = textLower.match(regex);
-        if (match) {
+    Object.entries(patterns).forEach(([field, regexList]) => {
+      for (const regex of regexList) {
+        const match = text.match(regex);
+        if (match && match[1]) {
           const value = parseFloat(match[1].replace(/,/g, ''));
           if (value > 0) {
             extracted[field] = value;
